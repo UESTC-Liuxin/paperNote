@@ -22,9 +22,17 @@ DETR 将目标检测任务视为一个**图像到集合（image-to-set）**的�
 
 DETR提出一个比较简洁的pipeline，去除先验性操作和手工操作。
 
-<img src="C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20201010033053087.png" alt="image-20201010033053087" style="zoom: 67%;" />
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20201010033053087.png)
 
+**效果对比：**
 
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20201019221301371.png)
+
+这个效果嘛。。。。呃呃。。。。。总结一句话就是，基本没啥优势，在最好的版本上，速度不如fater-rcnn的改进版，整个AP的提升也很小，并且在小目标的检测上，效果不佳。
+
+效果不突出，模型也不小，速度还不够快，那还有什么值得研究的地方呢？
+
+- 这是一次大胆的尝试，
 
 ## pipeline
 
@@ -34,7 +42,7 @@ DETR提出一个比较简洁的pipeline，去除先验性操作和手工操作�
 
 输入图片->backbone提取特征->构造一组图像特征集->经过transformer的编解码模块->直接预测......
 
-
+看起来，前向推断的过程显得非常简单。
 
 ## about transformer
 
@@ -70,7 +78,7 @@ Transformer是2017年NIPS上的文章，题目为[Attention is All You Need](htt
 
 - 词嵌入向量：在NLP的应用中，一般句子当中的每个单词都会通过词嵌入算法将单词转换为词向量（无论多长的单词，一般都会转换为统一长度的向量，比如512）。
 
-  ![img](https://n.sinaimg.cn/sinacn20116/123/w824h99/20190108/f85a-hrkkwef7014602.png)
+  ![img](https://img-blog.csdnimg.cn/img_convert/487b682c45c553141928519f31b71e79.png)
 
 - 查询向量：将每个词嵌入向量与$W^Q$ 向量相乘得到。用于与所有的键向量相乘直接得到分数。
 
@@ -106,7 +114,7 @@ $Z_0...Z_7$的拼接与转换如下所示：
 
 在NLP中，句子中的单词也需要一个位置编码，用于建立单词之间的距离。encoder 为每个输入 embedding 添加了一个向量，这些向量符合一种特定模式，可以确定每个单词的位置，或者序列中不同单词之间的距离。例如，input embedding 的维度为4，那么实际的positional encodings如下所示：
 
-![img](https://upload-images.jianshu.io/upload_images/1667471-7550f68dbc823f05.png?imageMogr2/auto-orient/strip|imageView2/2/w/928/format/webp)
+![img](https://img-blog.csdnimg.cn/img_convert/74f7b2500583a6f804207bce17b9bdf3.png)
 
 位置编码的方式：
 
@@ -122,7 +130,21 @@ $$
 
 PE为二维矩阵，大小跟输入embedding的维度一样，行表示词语，列表示词向量；pos 表示词语在句子中的位置；$ d_{model}$表示词向量的维度；i表示词向量的位置。因此，上述公式表示在每个词语的词向量的偶数位置添加sin变量，奇数位置添加cos变量，以此来填满整个PE矩阵，然后加到input embedding中去，这样便完成位置编码的引入了。
 
-这么做的好处是什么：
+**为什么要这么编码呢？**
+
+首先，关注的是为什么要用sin函数，直接按照0，1，3，4，5，6，....编码？
+
+- 直接编码这个序列是没有上界的。设想一段很长的(比如含有500个字的)文本，最后一个字的位置编码非常大，这是很不合适的：1. 它比第一个字的编码大太多，和字嵌入合并以后难免会出现特征在数值上的倾斜；2. 它比一般的字嵌入的数值要大，位置信息完全的弱化了嵌入信息大小。
+- 然而做归一化，将编码线性变换到[-1,1]区间，会存在不同长度文本的位置编码步长是不同的，在较短的文本中紧紧相邻的两个字的位置编码差异，会和长文本中相邻数个字的两个字的位置编码差异一致。这显然是不合适的，我们关注的位置信息，最核心的就是相对次序关系，尤其是上下文中的次序关系，如果使用这种方法，那么在长文本中相对次序关系会被「稀释」。
+- 周期函数的引入是为了复用位置编码函数的值域，更加关注相近的位置的相对距离。
+
+其次，关注为什么要在sin函数中加入波长的编码？
+$$
+10000^{2 i / d_{\text {model}}}
+$$
+除了关注单词间的距离之外，每个单词的词嵌入向量也是一个多维的，如果不关注每一维的位置，其实高维编码就没有什么意义，因此加入了波长信息，去控制波长。在同一个词嵌入向量，pos确定，相对距离就是由i来控制了。
+
+最后，关注为什么要sin cos同时使用，我想的话，下面这个推导，应该能很好的解释这个问题：
 
 根据
 $$
@@ -139,7 +161,12 @@ P E(p o s+k, 2 i+1) &=P E(p o s, 2 i+1) \times P E(k, 2 i+1)-P E(p o s, 2 i) \ti
 \end{aligned}\right.
 $$
 
-> 在下图中，是20个单词的 positional encoding，每行代表一个单词的位置编码，即第一行是加在输入序列中第一个词嵌入的，每行包含 512 个值， 每个值介于 -1 和 1 之间，用颜色表示出来。
+**任意一个单词的编码，都可以用其余单词的编码的线性组合表示出来，这句话背后深层的函数是什么？对于神经网络而言，卷积本身就是线性变化的过程，也就是说，通过矩阵相乘，或者说全连接层，编码信息是很容易进行多次编码和还原的。**
+
+
+> 在下图中，是20个单词的 positional encoding，每行代表一个单词的位置编码，即第一行是加在输入序列中第一个词嵌入的，每行包含
+>
+>  512 个值， 每个值介于 -1 和 1 之间，用颜色表示出来。
 >
 > <img src="https://upload-images.jianshu.io/upload_images/1667471-1ba3ee50c7646def.png?imageMogr2/auto-orient/strip|imageView2/2/w/1200/format/webp" alt="img" style="zoom: 80%;" />
 >
@@ -152,6 +179,22 @@ $$
 > 来源：简书
 > 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
+然后我做了个40个单词，词嵌入向量为100的位置编码的变化：
+
+excel公式：
+
+```bash
+=IF(MOD(B$1,2)=1,SIN($A2/(100^(B$1/100))),COS($A2/(100^(B$1/100))))
+```
+
+**奇在左，偶在右**
+
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20201021192543031.png)
+**奇偶交替，连续增大**
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20201021192612793.png)
+
+
+
 ==**在原本的transormer中positional encoding向量与词嵌入向量是直接相加得到的。但是在DETR中有了略微的改变。**==
 
 ## transformer of DETR
@@ -160,7 +203,7 @@ $$
 
 对比这两张图，左图为原本的transformer的结构，右图为DETR修改后的transformer的结构。
 
-<img src="https://pic1.zhimg.com/80/v2-f5650ffdb621bee45c244454aaabbc48_720w.jpg" alt="img" style="zoom: 80%;" /><img src="https://img-blog.csdnimg.cn/20200529114939410.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2MyMjUwNjQ1OTYy,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述" style="zoom:80%;" />
+<img src="https://pic1.zhimg.com/80/v2-f5650ffdb621bee45c244454aaabbc48_720w.jpg" alt="img" style="zoom: 67%;" /><img src="https://img-blog.csdnimg.cn/20200529114939410.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2MyMjUwNjQ1OTYy,size_16,color_FFFFFF,t_70#pic_center" alt="在这里插入图片描述" style="zoom:80%;" />
 
 - 从结构上看，在输出的分支上，DETR利用FFN引出了两个分支，一个做分类，一个做BBox的回归。
 
@@ -168,7 +211,7 @@ $$
 
 ### Encoder
 
-介绍完了一些基本的概念，以及多头自注意力机制和位置编码，这里需要提一下的就是**decoder**中的前向传播和归一化操作以及残差连接。回顾一下上面这张图，可以清晰的看出整个Encoder的每一层EncoderLayer由四个部分组成：**多头注意力机制模块**、**Add & Norm模块**、**前向传播模块**，一共有6层。
+介绍完了一些基本的概念，以及多头自注意力机制和位置编码，这里需要提一下的就是**encoder**中的前向传播和归一化操作以及残差连接。回顾一下上面这张图，可以清晰的看出整个Encoder的每一层EncoderLayer由四个部分组成：**多头注意力机制模块**、**Add & Norm模块**、**前向传播模块**，一共有6层。
 
 每一层的操作完全一致，每一层的具体细节为：
 
@@ -185,7 +228,7 @@ $$
 
 3. 这里一般默认选择**在多头自注意力层和前向反馈层后进行归一化**，将"1"中的特征图进行LayerNormlize（与batchNormlize不同，LayerNormlize是在Channel这个维度去做归一化。）
 
-   ![img](https://img2018.cnblogs.com/blog/1446032/201905/1446032-20190516181157307-533501353.png)
+   ![img](https://img-blog.csdnimg.cn/img_convert/fe6b187086f5164e838ef834ade1cded.png)
 
    看图片不一定能看得很清楚，举个例子，对于一个（Batch,C,H,W）的张量：
 
@@ -251,9 +294,7 @@ decoder流程：
 
 分类分支输出一个outputs_class，shape=(6,batch,100,num_classs)的tensor。（outputs_class原本输出为(batch,100,hidden),经stack6层)
 
-bbox坐标回归分支输出一个outputs_coord，shape=(6,batch,100,4)的tensor
-
-
+bbox坐标回归分支输出一个outputs_coord，shape=(6,batch,100,4)的tensor。
 
 ### Loss
 
@@ -264,8 +305,6 @@ bbox坐标回归分支输出一个outputs_coord，shape=(6,batch,100,4)的tensor
 - 分类loss：CEloss(交叉熵损失)；
 - 回归loss的计算包括预测框与GT的中心点和宽高的L1 loss以及GIoU loss
 - loss_cardinality，后面再说。
-
-
 
 ### 匈牙利算法
 
@@ -281,7 +320,7 @@ bbox坐标回归分支输出一个outputs_coord，shape=(6,batch,100,4)的tensor
 
 然后利用匈牙利匹配出目标框，将预测框的索引值和对应位置的gt目标狂的索引配对输出。其余的就直接抛弃。
 
-### 简单demo分析
+## 简单demo分析
 
 这里直接从源码中进行分析（官方提供了一个非常丝滑的前向推断的demo，backbone用的resnet50，然后最重要的就是，position encoding选择的方式是x与y方向可学习的(50,128)的位置编码。代码真的非常简单，整体结构一目了然）：[detr_demo](http://localhost:8888/notebooks/Documents/CV/Project/detr-colab/notebooks/detr_demo.ipynb)
 
@@ -399,22 +438,56 @@ class DETRdemo(nn.Module):
         return b
     ```
 
-### 细节补充
+## 消融实验理解
 
 
 
-## FFNSs
+## Thinking
 
-最终预测是由具有ReLU激活功能且具有隐藏层的3层感知器和线性层计算的。 FFN预测框的标准化中心坐标，高度和宽度， 输入图像，然后线性层使用softmax函数预测类标签。 由于我们预测了一组固定大小的N个边界框，其中N通常比图像中感兴趣的对象的实际数量大得多，因此使用了一个额外的特殊类标签∅来表示在未检测到任何对象。 此类在标准对象检测方法中与“背景”类具有相似的作用。
+- 多头自注意力机制到底关注了什么？
 
+- 关于layer normalization，为什么有效？
 
+- 关于集合的预测，最大的问题是预测框的匹配问题，匈牙利算法是比较暴力的算法。是否可以在此基础上提出更好的匹配算法。按照常规的目标检测的思路(==这里只提及训练过程==)：
 
+   YOLO: YOLO每一个grid cell 3个anchor，找到这个grid cell对应原图区域中中心点落于此区域的gt，进行IOU比较，得到最大的，就作为此gt的匹配，对于其余的anchor，与gt IOU大于0.5的，也认为是TP，小于0.5的，就直接作为FP。
 
+   Faster RCNN:
+
+   ==Faster rcnn分为两个部分：==
+
+   第一个部分：	RPN的训练
+
+   对于一大堆的预测出来的proposal（这里指的是，RPN预测出来的前景anchor和bounding box回归后修正两个步骤筛选出来的proposal），和实际的gt的匹配过程如下：
+
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20201023105957158.png)
+
+1. 与YOLO相似，RPN网络是一个具备anchor的网络，利用滑窗，可以确定当前feature map上的点在输入图像上对应的的区域（不是指proposal，就只是指，按照缩放比例，在输入图像对应的区域），只要这个区域上有目标，那么就可以进行匹配了（这里不管有几个gt，也不管gt是哪个类别），将gt与anchor对应的proposal进行IOU比较，保留最大的IOU的proposal记为TP,同时要保证中心点落于这个区域的每个gt都至少有一个proposal与它匹配；
+2. 对于剩余的proposal，如果其与某个标定区域重叠比例大于0.7，记为正样本（每个gt可能会对应多个正样本anchor。但每个正样本anchor 只可能对应一个grand true box）；如果其与任意一个标定的重叠比例都小于0.3，记为负样本。
+
+第二个部分：proposal to classfication
+
+对于一次计算来说，proposal就是一个预测框，直接找到这个预测框所对应的IOU最大的gt，进行匹配，进行分类和回归就好了。并不存在集合到集合的预测。
+
+==这里可以看出，基于anchor的方法不需要进行匹配的原因是，anchor的存在就已经确定了gt，然而DETR作为集合到集合的预测，预测框与gt之间，没有任何的关联，因此必须要进行匈牙利匹配。但是，有没办法，让gt和预测框产生联系呢？比如对gt按照某个方法排序，直接按位预测，是否可以呢？==
+
+- 为什么小目标的效果不好？
+
+   一般在处理小目标上，通常的做法是增加FPN，因为小目标在图片上的像素信息相比于大目标而言，很少，于是不得不利用更多的上下文信息（扩充其高层语义信息）；但其实，由于多头注意力机制的存在，特征图上的每个像素都产生了非常强的关联性，每个像素点，也就是说，上下文的信息应该比较充足的，为什么其对小目标效果不行。
+
+  
 
 # Reference
 
 [1]: https://zhuanlan.zhihu.com/p/146065711	"【论文笔记】从Transformer到DETR"
 [2]: https://blog.csdn.net/longxinchen_ml/article/details/86533005	"图解Transformer（完整版）"
+
+[3]: https://www.jianshu.com/p/e7d8caa13b21	"图解transformer"
+
+[4]: https://www.jianshu.com/p/85e75a03da65	"源码解析目标检测的跨界之星DETR（一）、概述与模型推断"
+[5]: https://blog.csdn.net/liuxiao214/article/details/81037416	"BatchNormalization、LayerNormalization、InstanceNorm、GroupNorm、SwitchableNorm总结"
+[6]: https://blog.csdn.net/tommorrow12/article/details/80896331	"torch.nn.Embedding理解"
+[7]: https://zhuanlan.zhihu.com/p/96229700	"匈牙利算法"
 
 [3]: https://www.jianshu.com/p/e7d8caa13b21	"图解transformer"
 
