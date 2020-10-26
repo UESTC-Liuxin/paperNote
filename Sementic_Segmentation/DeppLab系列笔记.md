@@ -8,9 +8,7 @@
 
 # FCN
 
-
-
-![image-20200921144144243](/home/liuxin/.config/Typora/typora-user-images/image-20200921144144243.png)
+![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20200921144144243.png)
 
 这是基于深度学习的端到端的语义分割方法的师祖了，利用反卷积替代全连接层，直接从特征图上得到分割图。
 
@@ -30,7 +28,9 @@
 
 - pipeline
 
-  ![image-20200922153128928](/home/liuxin/.config/Typora/typora-user-images/image-20200922153128928.png)
+  ![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20200922153128928.png)
+  
+  
 
 # SegNet
 
@@ -107,7 +107,7 @@
 
   具体的pipeline表示为：
 
-  ![image-20200924163522807](/home/liuxin/.config/Typora/typora-user-images/image-20200924163522807.png)
+  ![](https://raw.githubusercontent.com/UESTC-Liuxin/paperNote/main/img/image-20200924163522807.png)
 
   具体描述为(以全局stride=16为例)：
 
