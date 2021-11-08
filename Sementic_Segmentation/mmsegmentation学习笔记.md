@@ -4,6 +4,16 @@
 
 mmsegmentation是open-mmlab继mmdetection之后开源的又一大作，专用于语义分割，github直通车：https://github.com/open-mmlab/mmsegmentation。由于喜欢mmd的效果，并忠于open-mmlab良好的编程风格，写下这篇笔记，希望能带给自己收获的同时，能够便利他人。
 
+
+
+## 进行demo测试
+
+
+
+### 
+
+
+
 ## mmcv文件夹
 
 在最新的版本中，open-mmlab将mmcv独立了出来，作为一个python的库，为open-mmlab所有的
@@ -321,6 +331,20 @@ def register_training_hooks(self,
 
 这个程序是真的很喜欢用`getattr`函数。。。。。。
 
+#### cnn
+
+储存了关于cnn操作的一些代码。
+
+#### utils
+
+包含了open-mmlab用的一些工具：重新封装的config的类，looging相关，进度条，计时器
+
+#### 其他
+
+太多了，很多东西对使用者来说不重要
+
+
+
 
 
 ## mmsegmentation文件总体结构
@@ -609,7 +633,11 @@ def __init__(self,
 
 在构造函数`__init__`中，首先根据config信息，利用builder转换为了实际的模型，并调用`init_weights`函数初始化权重或者加载预训练权重，加载预训练权重的操作在mmcv/mmcv/runner/checkpoint.py中。
 
-然后看最关键的代码，前向传播，代码的前向传播是由
+### datasets
+
+- **pipelines**
+
+
 
 ## tools文件夹
 
